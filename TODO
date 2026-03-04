@@ -1,0 +1,11 @@
+- [ ] Database
+  - [ ] Load all videos into a database, combining information across the three channels
+  - [ ] Support most recently watched + exact location
+- [ ] Create a UI
+  - [ ] YouTube video shown from video ID
+  - [ ] Exact location in the video can be controlled
+  - [ ] Autoplay goes to the next video
+- [ ] Implement a backend
+  - [ ] Fetches most recently watched video + watch location
+  - [ ] Provides the next video to watch
+  - [ ] Accepts "like" functionality to sort the video by liked/not liked

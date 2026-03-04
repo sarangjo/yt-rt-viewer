@@ -1,7 +1,8 @@
-apikey.txt
+.env
 
 achievementhunter
 letsplay
 roosterteeth
 
-*.exe
+# Added by cargo
+/target
