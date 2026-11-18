@@ -1,0 +1,82 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="referrer" content="strict-origin-when-cross-origin">
+  <title>RT Archive Viewer</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">RT Archive <span>Viewer</span></div>
+    <div class="filters" id="filters" aria-label="Filters"></div>
+    <div class="stats" id="stats"></div>
+  </header>
+
+  <div class="data-note hidden" id="dataNote"></div>
+
+  <div class="layout">
+    <main class="main">
+      <div class="player-wrap">
+        <div id="player"></div>
+        <div class="overlay hidden" id="overlay">
+          <div class="overlay-box">
+            <div class="overlay-title" id="overlayTitle">This video can't be played here</div>
+            <div class="overlay-msg" id="overlayMsg"></div>
+            <div class="overlay-actions">
+              <a class="btn" id="overlayYt" target="_blank" rel="noopener">Watch on YouTube</a>
+              <button class="btn primary" id="overlaySkip">Skip</button>
+              <button class="btn ghost hidden" id="overlayCancel">Stay here</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <section class="now">
+        <div class="nav-row">
+          <button class="btn nav" id="prevBtn" title="Previous video (P)">&#9664; Prev</button>
+          <div class="now-info">
+            <div class="now-pos" id="nowPos"></div>
+            <h1 class="now-title" id="nowTitle">Loading…</h1>
+            <div class="now-meta" id="nowMeta"></div>
+          </div>
+          <button class="btn nav primary" id="nextBtn" title="Next video (N)">Next &#9654;</button>
+        </div>
+        <div class="tools-row">
+          <label class="toggle"><input type="checkbox" id="autoNext"> Auto-play next when a video ends</label>
+          <label class="toggle"><input type="checkbox" id="autoSkip"> Auto-skip unplayable videos</label>
+          <span class="spacer"></span>
+          <button class="btn small" id="markBtn">Mark watched</button>
+          <a class="btn small" id="ytLink" target="_blank" rel="noopener">Open on YouTube</a>
+          <button class="btn small ghost" id="menuBtn" title="Backup / restore progress">&#8943;</button>
+          <div class="menu hidden" id="menu">
+            <button id="exportBtn">Export progress…</button>
+            <button id="importBtn">Import progress…</button>
+            <input type="file" id="importFile" accept="application/json" hidden>
+          </div>
+        </div>
+        <div class="keys">Keys: <kbd>N</kbd> next · <kbd>P</kbd> previous · <kbd>C</kbd> show current in list · <kbd>/</kbd> search (click outside the video first)</div>
+      </section>
+    </main>
+
+    <aside class="side">
+      <div class="side-head">
+        <input type="search" id="search" placeholder="Search titles…" autocomplete="off">
+        <input type="date" id="dateJump" title="Jump the list to a date">
+        <button class="btn small" id="toCurrent" title="Scroll to the current video (C)">Current</button>
+      </div>
+      <div class="side-sub">
+        <span id="listCount"></span>
+        <span id="listDate" class="list-date"></span>
+      </div>
+      <div class="list" id="list" tabindex="-1">
+        <div class="list-spacer" id="listSpacer"></div>
+      </div>
+    </aside>
+  </div>
+
+  <script src="app.js"></script>
+  <script src="https://www.youtube.com/iframe_api"></script>
+</body>
+</html>
