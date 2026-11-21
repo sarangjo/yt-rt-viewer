@@ -13,12 +13,15 @@ clearing browser data or switching browsers.
 import json
 import os
 import sys
+import time
 import webbrowser
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent
 PROGRESS = ROOT / "data" / "progress.json"
+BACKUPS = ROOT / "data" / "progress-backups"   # one snapshot per hour of use, last 72 kept
+KEEP_BACKUPS = 72
 PORT = int(os.environ.get("PORT", "8642"))
 MAX_BODY = 10 * 1024 * 1024
 
@@ -69,12 +72,28 @@ class Handler(SimpleHTTPRequestHandler):
             except Exception:
                 pass
         PROGRESS.parent.mkdir(exist_ok=True)
+        snapshot_previous()
         tmp = PROGRESS.with_suffix(".tmp")
         tmp.write_bytes(raw)
         tmp.replace(PROGRESS)
         return self._json(200, b'{"ok":true}')
 
     do_PUT = do_POST
+
+
+def snapshot_previous():
+    """Before overwriting progress.json, keep the old copy if this hour has no snapshot yet."""
+    if not PROGRESS.exists():
+        return
+    try:
+        BACKUPS.mkdir(exist_ok=True)
+        snap = BACKUPS / time.strftime("progress-%Y%m%d-%H.json")
+        if not snap.exists():
+            snap.write_bytes(PROGRESS.read_bytes())
+            for old in sorted(BACKUPS.glob("progress-*.json"))[:-KEEP_BACKUPS]:
+                old.unlink()
+    except OSError as exc:
+        print(f"progress backup failed: {exc}", file=sys.stderr)
 
 
 def main():

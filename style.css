@@ -57,9 +57,9 @@ button, input { font: inherit; color: inherit; }
 .chip .n { color: var(--muted); font-size: 12px; }
 .chip.off { opacity: .45; text-decoration: line-through; }
 .chip:hover { border-color: #444; }
-.stats { margin-left: auto; color: var(--muted); font-size: 13px; white-space: nowrap; }
+.stats { display: flex; align-items: center; gap: 8px; padding: 10px 12px 0; color: var(--muted); font-size: 12.5px; white-space: nowrap; }
 .stats b { color: var(--text); font-weight: 600; }
-.stats .bar { display: inline-block; width: 120px; height: 6px; border-radius: 3px; background: var(--panel-2); vertical-align: middle; margin-left: 8px; overflow: hidden; }
+.stats .bar { flex: 1; height: 6px; border-radius: 3px; background: var(--panel-2); overflow: hidden; }
 .stats .bar i { display: block; height: 100%; background: var(--accent); }
 
 .data-note {
@@ -83,7 +83,7 @@ button, input { font: inherit; color: inherit; }
 .player-wrap {
   position: relative;
   width: 100%;
-  max-width: calc((100vh - 260px) * 16 / 9);
+  max-width: calc((100vh - var(--chrome-h, 50px) - 215px) * 16 / 9);
   min-width: 320px;
   margin: 0 auto;
   aspect-ratio: 16 / 9;
@@ -103,13 +103,13 @@ button, input { font: inherit; color: inherit; }
 .overlay-actions { display: flex; gap: 10px; justify-content: center; flex-wrap: wrap; }
 
 /* ---------- now playing ---------- */
-.now { max-width: calc((100vh - 260px) * 16 / 9); min-width: 320px; margin: 14px auto 0; }
+.now { max-width: calc((100vh - var(--chrome-h, 50px) - 215px) * 16 / 9); min-width: 320px; margin: 14px auto 0; }
 .nav-row { display: flex; align-items: center; gap: 14px; }
 .now-info { flex: 1; min-width: 0; text-align: center; }
 .now-pos { color: var(--muted); font-size: 12px; text-transform: uppercase; letter-spacing: .06em; }
 .now-title { font-size: 19px; margin: 2px 0 4px; font-weight: 700; overflow-wrap: anywhere; }
 .now-meta { color: var(--muted); display: flex; gap: 10px; justify-content: center; flex-wrap: wrap; align-items: center; }
-.tools-row { display: flex; align-items: center; gap: 14px; margin-top: 14px; flex-wrap: wrap; position: relative; }
+.tools-row { display: flex; align-items: center; gap: 8px 14px; margin-top: 14px; flex-wrap: wrap; position: relative; }
 .tools-row .spacer { flex: 1; }
 .toggle { display: inline-flex; align-items: center; gap: 6px; color: var(--muted); cursor: pointer; user-select: none; }
 .toggle input { accent-color: var(--accent); }

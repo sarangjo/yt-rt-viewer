@@ -27,6 +27,19 @@ const ERROR_TEXT = {
   153: 'YouTube rejected the embed request. Open the site through server.py (http://localhost:8642), not as a file.',
 };
 
+// Title filters from filters.js (chips like "Red vs. Blue"). Bad entries are skipped, not fatal.
+// (drops the g/y flags, which would make .test() stateful)
+const toRegex = (x) => (x instanceof RegExp ? new RegExp(x.source, x.flags.replace(/[gy]/g, ''))
+  : typeof x === 'string' && x ? new RegExp(x, 'i') : null);
+const TITLE_FILTERS = (Array.isArray(window.TITLE_FILTERS) ? window.TITLE_FILTERS : []).flatMap((f) => {
+  try {
+    const match = toRegex(f.match);
+    if (!f.id || !match) throw new Error('needs an id and a match pattern');
+    return [{ id: String(f.id), label: f.label || String(f.id), match, exclude: toRegex(f.exclude),
+      channels: Array.isArray(f.channels) && f.channels.length ? f.channels : null, skip: f.skip === true }];
+  } catch (e) { console.warn('filters.js: ignoring filter', f, e.message); return []; }
+});
+
 /* ---------------- state ---------------- */
 let ALL = [];            // [{id,title,ts,dur,ch,type,flags,i}]
 let byId = new Map();    // id -> index in ALL
@@ -41,6 +54,9 @@ let dirty = false;       // unsynced changes for the server
 let lastLocalSave = 0;
 let resumeNote = null;    // {id, t} shown until playback starts after a reload
 let importing = false;
+// Only write to the server after reading its copy, so a tab that couldn't see the saved
+// progress never overwrites it with an empty one.
+let serverSeen = false;
 
 let store = {
   at: 0,
@@ -50,8 +66,10 @@ let store = {
   settings: {
     channels: { RT: true, AH: true, LP: true },
     types: { video: true, short: true, stream: true },
+    titles: {},          // title filter id -> false when its videos are skipped
     autoNext: true,
     autoSkip: true,
+    hideEndscreens: true, // privacy-mode player: no end-screen cards
   },
 };
 
@@ -67,7 +85,9 @@ async function loadServer() {
     const r = await fetch('api/progress', { cache: 'no-store' });
     if (!r.ok) return null;
     const d = await r.json();
-    return d && typeof d === 'object' && d.at ? d : null;
+    if (!d || typeof d !== 'object') return null;
+    serverSeen = true;
+    return d.at ? d : null;
   } catch { return null; }
 }
 
@@ -80,8 +100,10 @@ function mergeStore(saved) {
   const s = saved.settings || {};
   Object.assign(store.settings.channels, s.channels || {});
   Object.assign(store.settings.types, s.types || {});
+  Object.assign(store.settings.titles, s.titles || {});
   if (typeof s.autoNext === 'boolean') store.settings.autoNext = s.autoNext;
   if (typeof s.autoSkip === 'boolean') store.settings.autoSkip = s.autoSkip;
+  if (typeof s.hideEndscreens === 'boolean') store.settings.hideEndscreens = s.hideEndscreens;
 }
 
 function saveLocal() {
@@ -93,6 +115,7 @@ function saveLocal() {
 
 function syncServer(useBeacon = false) {
   if (!dirty) return;
+  if (!serverSeen) { loadServer().then((d) => adoptExternal(d)); return; } // try again next round
   dirty = false;
   const body = JSON.stringify(store);
   if (useBeacon && navigator.sendBeacon) {
@@ -125,7 +148,9 @@ function lowerBound(arr, target, key = (x) => x) {
 }
 
 const isWatched = (v) => store.progress[v.id] === -1;
-const passes = (v) => store.settings.channels[v.ch] !== false && store.settings.types[v.type] !== false;
+const titleOn = (f) => (f.id in store.settings.titles ? store.settings.titles[f.id] !== false : !f.skip);
+const passes = (v) => store.settings.channels[v.ch] !== false && store.settings.types[v.type] !== false &&
+  !(v.tags && v.tags.some((f) => !titleOn(f)));
 
 /* ---------------- filters / lists ---------------- */
 function rebuildNav() {
@@ -180,6 +205,17 @@ function renderFilters() {
       afterFilterChange();
     });
   }
+  if (TITLE_FILTERS.length) {
+    const sep2 = document.createElement('span'); sep2.className = 'sep'; box.appendChild(sep2);
+  }
+  for (const f of TITLE_FILTERS) {
+    const n = ALL.reduce((k, v) => k + (v.tags ? v.tags.includes(f) : 0), 0);
+    chip(f.label, n, titleOn(f), null, () => {
+      store.settings.titles[f.id] = !titleOn(f);
+      afterFilterChange();
+    });
+    box.lastChild.title = titleOn(f) ? `Click to skip ${f.label} videos` : `Skipping ${f.label} videos — click to include them again`;
+  }
 }
 
 function afterFilterChange() {
@@ -193,7 +229,7 @@ function renderStats() {
   let watched = 0;
   for (const i of navList) if (isWatched(ALL[i])) watched++;
   const pct = navList.length ? (watched / navList.length) * 100 : 0;
-  $('stats').innerHTML = `<b>${fmtNum(watched)}</b> / ${fmtNum(navList.length)} watched (${pct.toFixed(pct < 10 ? 2 : 1)}%)` +
+  $('stats').innerHTML = `<span><b>${fmtNum(watched)}</b> of ${fmtNum(navList.length)} watched (${pct.toFixed(pct < 10 ? 2 : 1)}%)</span>` +
     `<span class="bar"><i style="width:${pct}%"></i></span>`;
 }
 
@@ -355,6 +391,8 @@ function adoptExternal(d) {
   mergeStore(d);
   $('autoNext').checked = store.settings.autoNext;
   $('autoSkip').checked = store.settings.autoSkip;
+  $('hideEnd').checked = store.settings.hideEndscreens;
+  if (!playing) rebuildPlayer();
   renderFilters();
   rebuildNav();
   const want = d.current && byId.has(d.current.id) ? byId.get(d.current.id) : cur;
@@ -391,6 +429,13 @@ function select(idx, { autoplay = true, dir = 0, scroll = true } = {}) {
   renderNow();
   renderStats();
   if (scroll) scrollToIndex(cur, 'nearest');
+}
+
+function togglePlay() {
+  if (!playerReady) return;
+  const st = player.getPlayerState();
+  if (st === YT.PlayerState.PLAYING || st === YT.PlayerState.BUFFERING) player.pauseVideo();
+  else player.playVideo();
 }
 
 function go(dir) {
@@ -459,13 +504,20 @@ function hideOverlay() {
 }
 
 // called by https://www.youtube.com/iframe_api
-window.onYouTubeIframeAPIReady = function () {
-  const start = () => {
-    const v = ALL[cur];
-    player = new YT.Player('player', {
+// YouTube's privacy-mode player (youtube-nocookie.com) doesn't draw end-screen cards, but it
+// also doesn't use your YouTube login (no Premium / watch history inside the player).
+const playerHost = () => (store.settings.hideEndscreens ? 'https://www.youtube-nocookie.com' : 'https://www.youtube.com');
+let playerBuiltFor = null;
+
+function createPlayer(autoplay = false, startAt = null) {
+  const v = ALL[cur];
+  playerReady = false;
+  playerBuiltFor = playerHost();
+  player = new YT.Player('player', {
+      host: playerBuiltFor,
       width: '100%', height: '100%',
       videoId: v.id,
-      playerVars: { start: resumeTime(v), autoplay: 0, rel: 0, playsinline: 1, origin: location.origin },
+      playerVars: { start: startAt ?? resumeTime(v), autoplay: autoplay ? 1 : 0, rel: 0, playsinline: 1, origin: location.origin },
       events: {
         onReady: () => {
           playerReady = true;
@@ -476,13 +528,38 @@ window.onYouTubeIframeAPIReady = function () {
         onStateChange,
         onError,
       },
-    });
-  };
-  if (ALL.length) start(); else window._startPlayer = start;
+  });
+}
+
+// Swap players (when the end-screen setting changes), keeping the video and position.
+function rebuildPlayer() {
+  if (!player || playerBuiltFor === playerHost()) return;
+  const wasPlaying = playerReady && player.getPlayerState() === YT.PlayerState.PLAYING;
+  // keep the exact spot (resumeTime() would restart a video that's in its last seconds)
+  const at = playerReady && playerVideoId() === ALL[cur].id ? Math.floor(player.getCurrentTime()) : null;
+  if (recordProgress()) saveLocal();
+  try { player.destroy(); } catch {}
+  if (!$('player')) {
+    const div = document.createElement('div');
+    div.id = 'player';
+    document.querySelector('.player-wrap').prepend(div);
+  }
+  hideOverlay();
+  createPlayer(wasPlaying, at);
+}
+
+window.onYouTubeIframeAPIReady = function () {
+  if (ALL.length) createPlayer(); else window._startPlayer = () => createPlayer();
 };
 
 /* ---------------- UI wiring ---------------- */
 function wire() {
+  // keep the player sized to the space left under the top bar (it grows as filter chips wrap)
+  const chrome = () => document.documentElement.style.setProperty('--chrome-h',
+    `${document.querySelector('.topbar').offsetHeight + $('dataNote').offsetHeight}px`);
+  new ResizeObserver(chrome).observe(document.querySelector('.topbar'));
+  new ResizeObserver(chrome).observe($('dataNote'));
+  chrome();
   $('prevBtn').onclick = () => go(-1);
   $('nextBtn').onclick = () => go(1);
   $('overlayCancel').onclick = () => { clearInterval(skipTimer); skipTimer = null; $('overlayCancel').classList.add('hidden'); $('overlaySkip').textContent = lastDir > 0 ? 'Skip to next' : 'Back to previous'; };
@@ -492,6 +569,8 @@ function wire() {
   $('autoSkip').checked = store.settings.autoSkip;
   $('autoNext').onchange = (e) => { store.settings.autoNext = e.target.checked; saveLocal(); };
   $('autoSkip').onchange = (e) => { store.settings.autoSkip = e.target.checked; saveLocal(); };
+  $('hideEnd').checked = store.settings.hideEndscreens;
+  $('hideEnd').onchange = (e) => { store.settings.hideEndscreens = e.target.checked; saveLocal(); rebuildPlayer(); };
 
   $('markBtn').onclick = () => {
     const v = ALL[cur];
@@ -554,9 +633,11 @@ function wire() {
   };
 
   document.addEventListener('keydown', (e) => {
-    if (e.target.matches('input, textarea') || e.ctrlKey || e.metaKey || e.altKey) return;
+    // typing in the search / date boxes shouldn't trigger shortcuts (checkboxes are fine)
+    if (e.target.matches('input:not([type=checkbox]), textarea') || e.ctrlKey || e.metaKey || e.altKey) return;
     const k = e.key.toLowerCase();
-    if (k === 'n') { e.preventDefault(); go(1); }
+    if (k === 'k') { e.preventDefault(); if (!e.repeat) togglePlay(); }
+    else if (k === 'n') { e.preventDefault(); go(1); }
     else if (k === 'p') { e.preventDefault(); go(-1); }
     else if (k === 'c') { e.preventDefault(); scrollToIndex(cur, 'center'); }
     else if (k === '/') { e.preventDefault(); $('search').focus(); }
@@ -600,6 +681,11 @@ async function boot() {
     id: r[F.id], title: r[F.title], ts: r[F.ts], dur: r[F.dur], ch: r[F.ch], type: r[F.type],
     flags: r[F.flags] || '', i, lc: r[F.title].toLowerCase(), approx: (r[F.flags] || '').includes('approx'),
   }));
+  for (const v of ALL) {
+    const tags = TITLE_FILTERS.filter((f) => (!f.channels || f.channels.includes(v.ch)) &&
+      f.match.test(v.title) && !(f.exclude && f.exclude.test(v.title)));
+    if (tags.length) v.tags = tags;
+  }
   const approxCount = ALL.reduce((n, v) => n + v.approx, 0);
   if (approxCount) {
     const note = $('dataNote');

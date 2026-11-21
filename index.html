@@ -11,7 +11,6 @@
   <header class="topbar">
     <div class="brand">RT Archive <span>Viewer</span></div>
     <div class="filters" id="filters" aria-label="Filters"></div>
-    <div class="stats" id="stats"></div>
   </header>
 
   <div class="data-note hidden" id="dataNote"></div>
@@ -44,8 +43,9 @@
           <button class="btn nav primary" id="nextBtn" title="Next video (N)">Next &#9654;</button>
         </div>
         <div class="tools-row">
-          <label class="toggle"><input type="checkbox" id="autoNext"> Auto-play next when a video ends</label>
-          <label class="toggle"><input type="checkbox" id="autoSkip"> Auto-skip unplayable videos</label>
+          <label class="toggle" title="Start the next video when one ends"><input type="checkbox" id="autoNext"> Auto-play next</label>
+          <label class="toggle" title="Skip videos YouTube won't play here (removed, members-only, embedding off) after 5 seconds"><input type="checkbox" id="autoSkip"> Skip unplayable</label>
+          <label class="toggle" title="Uses YouTube's privacy-mode player, which doesn't show the clickable end-screen cards. It isn't signed in to your YouTube account (no Premium, no watch history), and members-only videos won't play in it."><input type="checkbox" id="hideEnd"> Hide end screens</label>
           <span class="spacer"></span>
           <button class="btn small" id="markBtn">Mark watched</button>
           <a class="btn small" id="ytLink" target="_blank" rel="noopener">Open on YouTube</a>
@@ -56,11 +56,12 @@
             <input type="file" id="importFile" accept="application/json" hidden>
           </div>
         </div>
-        <div class="keys">Keys: <kbd>N</kbd> next · <kbd>P</kbd> previous · <kbd>C</kbd> show current in list · <kbd>/</kbd> search (click outside the video first)</div>
+        <div class="keys">Keys: <kbd>K</kbd> play/pause · <kbd>N</kbd> next · <kbd>P</kbd> previous · <kbd>C</kbd> show current in list · <kbd>/</kbd> search (click outside the video first)</div>
       </section>
     </main>
 
     <aside class="side">
+      <div class="stats" id="stats"></div>
       <div class="side-head">
         <input type="search" id="search" placeholder="Search titles…" autocomplete="off">
         <input type="date" id="dateJump" title="Jump the list to a date">
@@ -76,6 +77,7 @@
     </aside>
   </div>
 
+  <script src="filters.js"></script>
   <script src="app.js"></script>
   <script src="https://www.youtube.com/iframe_api"></script>
 </body>
